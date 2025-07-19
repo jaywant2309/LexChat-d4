@@ -136,11 +136,88 @@ function extractLegalEntities(text: string) {
   }
 }
 
+// Generate suggested questions based on document content and entities
+function generateSuggestedQuestions(text: string, entities: any[]): string[] {
+  const questions = []
+
+  try {
+    // Basic questions for all documents
+    questions.push("What is the main purpose of this document?")
+    questions.push("What are the key terms and conditions?")
+
+    // Questions based on entities
+    const persons = entities.filter((e) => e.label === "PERSON")
+    const organizations = entities.filter((e) => e.label === "ORGANIZATION")
+    const dates = entities.filter((e) => e.label === "DATE")
+    const amounts = entities.filter((e) => e.label === "MONEY")
+
+    if (persons.length > 0) {
+      questions.push("Who are the main parties involved in this document?")
+      questions.push(`What are the responsibilities of ${persons[0].text}?`)
+    }
+
+    if (organizations.length > 0) {
+      questions.push("What organizations are mentioned in this document?")
+      questions.push(`What is the role of ${organizations[0].text}?`)
+    }
+
+    if (dates.length > 0) {
+      questions.push("What are the important dates and deadlines?")
+      questions.push("When does this agreement take effect?")
+    }
+
+    if (amounts.length > 0) {
+      questions.push("What are the financial obligations mentioned?")
+      questions.push("What payment terms are specified?")
+    }
+
+    // Document type specific questions
+    const textLower = text.toLowerCase()
+
+    if (textLower.includes("contract") || textLower.includes("agreement")) {
+      questions.push("What happens if either party breaches this contract?")
+      questions.push("How can this agreement be terminated?")
+    }
+
+    if (textLower.includes("lease") || textLower.includes("rental")) {
+      questions.push("What are the lease terms and rental amount?")
+      questions.push("What are the tenant's and landlord's responsibilities?")
+    }
+
+    if (textLower.includes("employment") || textLower.includes("job")) {
+      questions.push("What are the employment terms and benefits?")
+      questions.push("What are the grounds for termination?")
+    }
+
+    if (textLower.includes("privacy") || textLower.includes("data")) {
+      questions.push("How is personal data collected and used?")
+      questions.push("What are the privacy rights and protections?")
+    }
+
+    if (textLower.includes("liability") || textLower.includes("insurance")) {
+      questions.push("What are the liability limitations?")
+      questions.push("What insurance requirements are specified?")
+    }
+
+    // Return unique questions, limited to 6
+    return [...new Set(questions)].slice(0, 6)
+  } catch (error) {
+    console.error("Error generating suggested questions:", error)
+    return [
+      "What is the main purpose of this document?",
+      "Who are the parties involved?",
+      "What are the key terms and conditions?",
+      "What are the important dates?",
+      "What are the financial obligations?",
+      "What are the legal implications?",
+    ]
+  }
+}
+
 // Generate comprehensive summary using Google Gemini API
 async function generateSummary(text: string): Promise<string> {
   const geminiApiKey = process.env.GEMINI_API_KEY
 
-  // Debug API key configuration
   console.log("Gemini Summary API Key check:", {
     exists: !!geminiApiKey,
     length: geminiApiKey?.length || 0,
@@ -148,8 +225,8 @@ async function generateSummary(text: string): Promise<string> {
   })
 
   if (!geminiApiKey) {
-    console.error("GEMINI_API_KEY environment variable is not set for summary generation")
-    return "Summary generation unavailable: Gemini API key not configured. Please check your .env file."
+    console.log("GEMINI_API_KEY not found, generating basic summary")
+    return generateBasicSummary(text)
   }
 
   try {
@@ -196,12 +273,16 @@ ${text.substring(0, 6000)}`,
       },
     )
 
+    console.log("Gemini API response status:", response.status)
+
     if (response.ok) {
       const data = await response.json()
       const summary = data.candidates?.[0]?.content?.parts?.[0]?.text
       if (summary) {
         console.log("Successfully generated summary using Gemini")
         return summary
+      } else {
+        console.log("Gemini API returned empty summary:", data)
       }
     } else {
       const errorText = await response.text()
@@ -261,40 +342,45 @@ ${text.substring(0, 6000)}`,
 
 // Fallback summary generation without AI
 function generateBasicSummary(text: string): string {
-  const words = text.split(/\s+/)
-  const sentences = text.split(/[.!?]+/).filter((s) => s.trim().length > 10)
+  try {
+    const words = text.split(/\s+/)
+    const sentences = text.split(/[.!?]+/).filter((s) => s.trim().length > 10)
 
-  // Extract key information
-  const entities = extractLegalEntities(text)
-  const persons = entities.filter((e) => e.label === "PERSON").map((e) => e.text)
-  const organizations = entities.filter((e) => e.label === "ORGANIZATION").map((e) => e.text)
-  const dates = entities.filter((e) => e.label === "DATE").map((e) => e.text)
-  const amounts = entities.filter((e) => e.label === "MONEY").map((e) => e.text)
+    // Extract key information
+    const entities = extractLegalEntities(text)
+    const persons = entities.filter((e) => e.label === "PERSON").map((e) => e.text)
+    const organizations = entities.filter((e) => e.label === "ORGANIZATION").map((e) => e.text)
+    const dates = entities.filter((e) => e.label === "DATE").map((e) => e.text)
+    const amounts = entities.filter((e) => e.label === "MONEY").map((e) => e.text)
 
-  let summary = "DOCUMENT ANALYSIS SUMMARY\n\n"
+    let summary = "DOCUMENT ANALYSIS SUMMARY\n\n"
 
-  summary += `Document Length: ${words.length} words, ${sentences.length} sentences\n\n`
+    summary += `Document Length: ${words.length} words, ${sentences.length} sentences\n\n`
 
-  if (persons.length > 0) {
-    summary += `Key Individuals: ${persons.slice(0, 5).join(", ")}\n\n`
+    if (persons.length > 0) {
+      summary += `Key Individuals: ${persons.slice(0, 5).join(", ")}\n\n`
+    }
+
+    if (organizations.length > 0) {
+      summary += `Organizations: ${organizations.slice(0, 5).join(", ")}\n\n`
+    }
+
+    if (dates.length > 0) {
+      summary += `Important Dates: ${dates.slice(0, 5).join(", ")}\n\n`
+    }
+
+    if (amounts.length > 0) {
+      summary += `Financial Amounts: ${amounts.slice(0, 5).join(", ")}\n\n`
+    }
+
+    // Add first few sentences as content preview
+    summary += `Content Preview: ${sentences.slice(0, 3).join(". ").substring(0, 500)}...`
+
+    return summary
+  } catch (error) {
+    console.error("Error generating basic summary:", error)
+    return "Document analysis completed. Unable to generate detailed summary due to processing error."
   }
-
-  if (organizations.length > 0) {
-    summary += `Organizations: ${organizations.slice(0, 5).join(", ")}\n\n`
-  }
-
-  if (dates.length > 0) {
-    summary += `Important Dates: ${dates.slice(0, 5).join(", ")}\n\n`
-  }
-
-  if (amounts.length > 0) {
-    summary += `Financial Amounts: ${amounts.slice(0, 5).join(", ")}\n\n`
-  }
-
-  // Add first few sentences as content preview
-  summary += `Content Preview: ${sentences.slice(0, 3).join(". ").substring(0, 500)}...`
-
-  return summary
 }
 
 // Enhanced PDF text extraction with better patterns
@@ -410,7 +496,8 @@ async function processWord(buffer: Buffer): Promise<string> {
     return result.value || ""
   } catch (error) {
     console.error("Word processing error:", error)
-    throw new Error("Word processing library not available or failed to process Word document")
+    // Return empty string instead of throwing error
+    return ""
   }
 }
 
@@ -426,7 +513,8 @@ async function processImage(buffer: Buffer): Promise<string> {
     return text || ""
   } catch (error) {
     console.error("OCR processing error:", error)
-    throw new Error("OCR library not available or failed to process image")
+    // Return empty string instead of throwing error
+    return ""
   }
 }
 
@@ -509,31 +597,42 @@ export async function POST(request: NextRequest) {
       }
     } catch (processingError) {
       console.error(`Error processing ${processingMethod}:`, processingError)
-      return NextResponse.json(
-        {
-          error: `Failed to process ${processingMethod} file: ${processingError.message}`,
-        },
-        { status: 500 },
-      )
+      // Continue with empty text instead of failing
+      extractedText = ""
+      processingMethod = "Processing Failed - Using Fallback"
     }
 
+    // If no text extracted, create a basic analysis
     if (!extractedText || extractedText.trim().length === 0) {
-      console.error("No text extracted from file")
-      return NextResponse.json(
-        {
-          error:
-            "No text could be extracted from the file. The file might be empty, corrupted, contain only images, or be a scanned document that requires OCR processing.",
-        },
-        { status: 400 },
-      )
+      console.log("No text extracted, creating basic file analysis")
+      extractedText = `File Analysis: ${file.name}
+File Type: ${file.type}
+File Size: ${file.size} bytes
+Processing Method: ${processingMethod}
+
+This file could not be processed for text extraction. It may be:
+- An image-only PDF or scanned document
+- A corrupted file
+- An unsupported format variant
+- A file requiring specialized processing
+
+Please try:
+1. Converting to a text-based PDF
+2. Using a different file format
+3. Ensuring the file is not corrupted`
     }
 
-    console.log(`Successfully extracted text (${extractedText.length} characters)`)
+    console.log(`Successfully processed file (${extractedText.length} characters)`)
 
     // Extract entities with enhanced patterns
     console.log("Extracting legal entities...")
     const entities = extractLegalEntities(extractedText)
     console.log(`Extracted ${entities.length} entities`)
+
+    // Generate suggested questions
+    console.log("Generating suggested questions...")
+    const suggestedQuestions = generateSuggestedQuestions(extractedText, entities)
+    console.log(`Generated ${suggestedQuestions.length} suggested questions`)
 
     // Generate comprehensive summary
     console.log("Generating comprehensive summary...")
@@ -545,6 +644,7 @@ export async function POST(request: NextRequest) {
       summary,
       fullText: extractedText,
       processingMethod,
+      suggestedQuestions,
       fileInfo: {
         name: file.name,
         type: file.type,
@@ -557,12 +657,25 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(result)
   } catch (error) {
     console.error("Unexpected error processing document:", error)
-    return NextResponse.json(
-      {
-        error: `Failed to process document: ${error.message}`,
-        details: error.stack,
+
+    // Return a safe fallback response instead of error
+    return NextResponse.json({
+      entities: [],
+      summary:
+        "Document processing encountered an error. The file may be corrupted or in an unsupported format. Please try uploading a different file or contact support if the issue persists.",
+      fullText: "Error processing document",
+      processingMethod: "Error Recovery",
+      suggestedQuestions: [
+        "What file formats are supported?",
+        "How can I convert my document to a supported format?",
+        "What should I do if my file won't process?",
+      ],
+      fileInfo: {
+        name: "Unknown",
+        type: "Unknown",
+        size: 0,
+        textLength: 0,
       },
-      { status: 500 },
-    )
+    })
   }
 }

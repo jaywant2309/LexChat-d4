@@ -31,6 +31,8 @@ import {
   Zap,
   Star,
   CheckCircle,
+  HelpCircle,
+  Lightbulb,
 } from "lucide-react"
 import { toast } from "@/hooks/use-toast"
 
@@ -53,7 +55,7 @@ interface DocumentAnalysis {
     size: number
     textLength: number
   }
-  keyInsights?: string[]
+  suggestedQuestions?: string[]
 }
 
 interface ChatMessage {
@@ -111,11 +113,38 @@ export default function LexChatApp() {
       })
 
       console.log("API response status:", response.status)
+      console.log("API response headers:", Object.fromEntries(response.headers.entries()))
 
       if (!response.ok) {
-        const errorData = await response.json()
-        console.error("API error:", errorData)
-        throw new Error(errorData.error || `Server error: ${response.status}`)
+        let errorMessage = `Server error: ${response.status} ${response.statusText}`
+
+        try {
+          // Try to parse as JSON first
+          const contentType = response.headers.get("content-type")
+          if (contentType && contentType.includes("application/json")) {
+            const errorData = await response.json()
+            errorMessage = errorData.error || errorMessage
+            console.error("API JSON error:", errorData)
+          } else {
+            // If not JSON, get text response
+            const errorText = await response.text()
+            errorMessage = errorText.substring(0, 500) || errorMessage
+            console.error("API text error:", errorText)
+          }
+        } catch (parseError) {
+          console.error("Error parsing error response:", parseError)
+          // Use the default error message
+        }
+
+        throw new Error(errorMessage)
+      }
+
+      // Ensure response is JSON
+      const contentType = response.headers.get("content-type")
+      if (!contentType || !contentType.includes("application/json")) {
+        const responseText = await response.text()
+        console.error("Expected JSON response but got:", contentType, responseText.substring(0, 500))
+        throw new Error("Server returned invalid response format. Please check server logs.")
       }
 
       const result = await response.json()
@@ -131,9 +160,11 @@ export default function LexChatApp() {
       })
     } catch (error) {
       console.error("Error processing document:", error)
+      const errorMessage = error instanceof Error ? error.message : "Unknown error occurred"
+
       toast({
         title: "❌ Error processing document",
-        description: error.message || "Please try again or check if the file format is supported.",
+        description: errorMessage,
         variant: "destructive",
       })
     } finally {
@@ -191,7 +222,22 @@ export default function LexChatApp() {
       })
 
       if (!response.ok) {
-        throw new Error("Failed to get chat response")
+        let errorMessage = `Chat service error: ${response.status}`
+
+        try {
+          const contentType = response.headers.get("content-type")
+          if (contentType && contentType.includes("application/json")) {
+            const errorData = await response.json()
+            errorMessage = errorData.error || errorMessage
+          } else {
+            const errorText = await response.text()
+            errorMessage = errorText.substring(0, 500) || errorMessage
+          }
+        } catch (parseError) {
+          console.error("Error parsing chat error response:", parseError)
+        }
+
+        throw new Error(errorMessage)
       }
 
       const result = await response.json()
@@ -211,14 +257,20 @@ export default function LexChatApp() {
     } catch (error) {
       console.error("Error in chat:", error)
       setChatMessages((prev) => prev.filter((msg) => !msg.isTyping))
+
+      const errorMessage = error instanceof Error ? error.message : "Failed to get response"
       toast({
         title: "Chat error",
-        description: "Failed to get response. Please try again.",
+        description: errorMessage,
         variant: "destructive",
       })
     } finally {
       setIsChatLoading(false)
     }
+  }
+
+  const handleSuggestedQuestion = (question: string) => {
+    setChatInput(question)
   }
 
   const getEntityIcon = (label: string) => {
@@ -583,6 +635,34 @@ export default function LexChatApp() {
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-6">
+                      {/* Suggested Questions */}
+                      {analysis.suggestedQuestions && analysis.suggestedQuestions.length > 0 && (
+                        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-6 rounded-2xl border border-blue-200">
+                          <div className="flex items-center gap-3 mb-4">
+                            <div className="p-2 bg-blue-100 rounded-lg">
+                              <Lightbulb className="h-5 w-5 text-blue-600" />
+                            </div>
+                            <h3 className="text-lg font-semibold text-slate-900">Suggested Questions</h3>
+                          </div>
+                          <div className="grid gap-3 md:grid-cols-2">
+                            {analysis.suggestedQuestions.map((question, index) => (
+                              <button
+                                key={index}
+                                onClick={() => handleSuggestedQuestion(question)}
+                                className="text-left p-4 bg-white/80 hover:bg-white border border-blue-200 rounded-xl transition-all duration-200 hover:shadow-md hover:scale-[1.02] group"
+                              >
+                                <div className="flex items-start gap-3">
+                                  <HelpCircle className="h-4 w-4 text-blue-600 mt-1 flex-shrink-0" />
+                                  <p className="text-sm text-slate-700 group-hover:text-slate-900 leading-relaxed">
+                                    {question}
+                                  </p>
+                                </div>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
                       <ScrollArea className="h-96 w-full border border-slate-200 rounded-2xl p-6 bg-white/60">
                         {chatMessages.length > 0 ? (
                           <div className="space-y-6">

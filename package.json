@@ -1,15 +1,30 @@
 {
-  "name": "my-v0-project",
-  "version": "0.1.0",
+  "name": "lexchat-legal-assistant",
+  "version": "1.0.0",
   "private": true,
+  "description": "AI-powered legal document analysis and Q&A system",
+  "keywords": [
+    "legal",
+    "document",
+    "analysis",
+    "ai",
+    "gemini",
+    "nextjs",
+    "typescript",
+    "tailwind"
+  ],
+  "license": "MIT",
+  "author": "LexChat Team",
   "scripts": {
     "build": "next build",
+    "clean": "rm -rf .next out dist",
     "dev": "next dev",
     "lint": "next lint",
-    "start": "next start"
+    "reset": "rm -rf node_modules package-lock.json && npm install",
+    "start": "next start",
+    "type-check": "tsc --noEmit"
   },
   "dependencies": {
-    "@hookform/resolvers": "^3.9.1",
     "@radix-ui/react-accordion": "latest",
     "@radix-ui/react-alert-dialog": "latest",
     "@radix-ui/react-aspect-ratio": "latest",
@@ -37,11 +52,9 @@
     "@radix-ui/react-toggle": "latest",
     "@radix-ui/react-toggle-group": "latest",
     "@radix-ui/react-tooltip": "latest",
-    "autoprefixer": "^10.4.20",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "latest",
-    "date-fns": "4.1.0",
     "embla-carousel-react": "latest",
     "fs": "latest",
     "input-otp": "latest",
@@ -61,15 +74,26 @@
     "tailwind-merge": "^2.5.5",
     "tailwindcss-animate": "^1.0.7",
     "tesseract.js": "latest",
-    "vaul": "latest",
-    "zod": "^3.24.1"
+    "vaul": "latest"
   },
   "devDependencies": {
     "@types/node": "^22",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "autoprefixer": "^10.4.16",
+    "eslint": "^8.51.0",
+    "eslint-config-next": "^15.0.0",
     "postcss": "^8.5",
-    "tailwindcss": "^3.4.17",
+    "tailwindcss": "^3.3.5",
     "typescript": "^5"
+  },
+  "optionalDependencies": {
+    "mammoth": "^1.6.0",
+    "pdf-parse": "^1.1.1",
+    "tesseract.js": "^5.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=8.0.0"
   }
 }
